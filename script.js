@@ -198,10 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadChartData() {
-        const min = document.getElementById('minFreq').value;
-        const max = document.getElementById('maxFreq').value;
+        const minInput = document.getElementById('minFreq').value;
+        const maxInput = document.getElementById('maxFreq').value;
+        const minVal = parseFloat(minInput) || 1;
+        const maxVal = parseFloat(maxInput) || 10000000000;
 
-        const res = await fetch(`api.php?action=chart_data&min=${min}&max=${max}`);
+        const res = await fetch(`api.php?action=chart_data&min=${minVal}&max=${maxVal}`);
         const data = await res.json();
 
         const chanPoints = data.channels.map(c => ({
@@ -222,6 +224,12 @@ document.addEventListener('DOMContentLoaded', () => {
         spectrumChart.data.datasets[0].data = allocBars;
         spectrumChart.data.datasets[1].data = chanPoints;
         spectrumChart.data.datasets[2].data = notePoints;
+
+        // Explicitly set the view to the requested range
+        if (spectrumChart && spectrumChart.options.scales.x) {
+            spectrumChart.options.scales.x.min = minVal;
+            spectrumChart.options.scales.x.max = maxVal;
+        }
 
         resetChartHighlight();
         spectrumChart.update();
