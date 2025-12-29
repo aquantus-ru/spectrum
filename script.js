@@ -1,75 +1,100 @@
 // script.js
 document.addEventListener('DOMContentLoaded', () => {
-    const ctx = document.getElementById('spectrumChart').getContext('2d');
+    let spectrumChart;
+    let currentPage = 1;
+    let currentLimit = 15;
+    let currentSort = 'val';
+    let currentOrder = 'asc';
+    let searchActive = false;
+    let searchQuery = '';
 
-    // Initialize empty chart
-    let spectrumChart = new Chart(ctx, {
-        type: 'scatter',
-        data: {
-            datasets: [
-                {
-                    label: 'Channels',
-                    data: [],
-                    backgroundColor: 'rgba(50, 255, 50, 0.8)',
-                    borderColor: 'rgba(50, 255, 50, 1)',
-                    pointRadius: 5,
-                    pointHoverRadius: 8
-                },
-                {
-                    label: 'Allocations', // We will represent allocations as lines (start/end)
-                    data: [],
-                    backgroundColor: 'rgba(50, 50, 255, 0.2)',
-                    borderColor: 'rgba(50, 50, 255, 0.5)',
-                    borderWidth: 10,
-                    showLine: true,
-                    pointRadius: 0
-                },
-                {
-                    label: 'Notes',
-                    data: [],
-                    backgroundColor: 'rgba(255, 50, 50, 0.8)',
-                    borderColor: 'rgba(255, 50, 50, 1)',
-                    pointStyle: 'triangle',
-                    pointRadius: 6
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                x: {
-                    type: 'logarithmic',
-                    title: { display: true, text: 'Frequency (Hz)', color: '#fff' },
-                    grid: { color: '#333' },
-                    ticks: { color: '#aaa', callback: function(value) { return formatFreq(value); } }
-                },
-                y: {
-                    display: false,
-                    min: 0,
-                    max: 10
-                }
+    // Initialize Chart
+    function initChart() {
+        const ctx = document.getElementById('spectrumChart').getContext('2d');
+        spectrumChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'Channels',
+                        data: [],
+                        backgroundColor: 'rgba(50, 255, 50, 0.8)',
+                        borderColor: 'rgba(50, 255, 50, 1)',
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Allocations',
+                        data: [],
+                        backgroundColor: 'rgba(50, 50, 255, 0.3)',
+                        borderColor: 'rgba(50, 50, 255, 0.6)',
+                        borderWidth: 2,
+                        showLine: true,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Notes',
+                        data: [],
+                        backgroundColor: 'rgba(255, 50, 50, 0.9)',
+                        borderColor: 'rgba(255, 50, 50, 1)',
+                        pointStyle: 'triangle',
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }
+                ]
             },
-            plugins: {
-                legend: { labels: { color: '#fff' } },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let item = context.raw;
-                            return `${item.name || item.desc}: ${formatFreq(item.x)}`;
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'logarithmic',
+                        title: { display: true, text: 'Frequency (Hz)', color: '#aaa' },
+                        grid: { color: '#222' },
+                        ticks: { color: '#888', callback: function(value) { return formatFreq(value); } }
+                    },
+                    y: {
+                        display: false,
+                        min: 0,
+                        max: 10
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#ccc' } },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#ddd',
+                        callbacks: {
+                            label: function(context) {
+                                let item = context.raw;
+                                return `${item.name || item.desc || item.title}: ${formatFreq(item.x)}`;
+                            }
+                        }
+                    },
+                    zoom: {
+                        zoom: {
+                            wheel: { enabled: true },
+                            pinch: { enabled: true },
+                            mode: 'x',
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'x',
                         }
                     }
-                }
-            },
-            onClick: (e, elements) => {
-                if (elements.length > 0) {
-                    const idx = elements[0].datasetIndex;
-                    const dataIdx = elements[0].index;
-                    const item = spectrumChart.data.datasets[idx].data[dataIdx];
-                    showDetails(item);
+                },
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        const idx = elements[0].datasetIndex;
+                        const dataIdx = elements[0].index;
+                        const item = spectrumChart.data.datasets[idx].data[dataIdx];
+                        alert(`Selected: ${item.name || item.desc || item.title}\nFrequency: ${formatFreq(item.x)}\n${item.obj.description || item.obj.content || ''}`);
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     function formatFreq(hz) {
         if (hz >= 1e9) return (hz / 1e9).toFixed(4) + ' GHz';
@@ -78,42 +103,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return hz + ' Hz';
     }
 
-    async function loadData() {
+    // Load Chart Data (Full Range)
+    async function loadChartData() {
         const min = document.getElementById('minFreq').value;
         const max = document.getElementById('maxFreq').value;
 
-        // Fetch Allocations
-        const allocRes = await fetch(`api.php?action=allocations&min=${min}&max=${max}`);
-        const allocations = await allocRes.json();
+        const res = await fetch(`api.php?action=chart_data&min=${min}&max=${max}`);
+        const data = await res.json();
 
-        // Fetch Channels
-        const chanRes = await fetch(`api.php?action=channels&min=${min}&max=${max}`);
-        const channels = await chanRes.json();
+        // Process Channels
+        const chanPoints = data.channels.map(c => ({
+            x: c.frequency, y: 5, name: c.name, desc: c.description, obj: c
+        }));
 
-        // Fetch Notes
-        const noteRes = await fetch(`api.php?action=notes&min=${min}&max=${max}`);
-        const notes = await noteRes.json();
+        // Process Notes
+        const notePoints = data.notes.map(n => ({
+            x: n.frequency_start, y: 7, title: n.title, desc: n.content, obj: n
+        }));
 
-        updateChart(allocations, channels, notes);
-        populateList([...allocations, ...channels, ...notes]);
-    }
-
-    function updateChart(allocs, chans, notesData) {
-        // Channels points
-        const chanPoints = chans.map(c => ({ x: c.frequency, y: 5, name: c.name, desc: c.description, obj: c }));
-
-        // Notes points
-        const notePoints = notesData.map(n => ({ x: n.frequency_start, y: 7, name: n.title, desc: n.content, obj: n }));
-
-        // Allocations (as horizontal bars - approximated with many points or just start/end for simplicity in scatter)
-        // Better visualization for ranges would be 'bar' chart on floating values or annotations, but let's try line segments in scatter
+        // Process Allocations
         const allocLines = [];
-        allocs.forEach((a, i) => {
-            // Assign a random Y level to avoid overlap
+        data.allocations.forEach((a, i) => {
             const y = 2 + (i % 3);
             allocLines.push({ x: a.start_freq, y: y, desc: a.description, obj: a });
             allocLines.push({ x: a.end_freq, y: y, desc: a.description, obj: a });
-            allocLines.push({ x: null, y: null }); // Break line
+            allocLines.push({ x: null, y: null });
         });
 
         spectrumChart.data.datasets[0].data = chanPoints;
@@ -122,76 +136,227 @@ document.addEventListener('DOMContentLoaded', () => {
         spectrumChart.update();
     }
 
-    function populateList(items) {
-        const list = document.getElementById('resultsArea');
-        list.innerHTML = '';
+    // Load Table Data (Paginated)
+    async function loadTableData() {
+        let url = `api.php?action=${searchActive ? 'search' : 'list_all'}&page=${currentPage}&limit=${currentLimit}`;
+        if (searchActive) {
+            url += `&q=${encodeURIComponent(searchQuery)}`;
+        } else {
+            url += `&sort=${currentSort}&order=${currentOrder}`;
+        }
 
-        // Sort by frequency (start_freq or frequency)
-        items.sort((a, b) => {
-            let freqA = a.frequency || a.start_freq || a.frequency_start;
-            let freqB = b.frequency || b.start_freq || b.frequency_start;
-            return freqA - freqB;
-        });
+        const res = await fetch(url);
+        const json = await res.json();
+
+        // Search endpoint returns {data: [...]}, list_all returns {data: [...], total: ...}
+        // Unify for rendering
+        const items = json.data;
+        const total = json.total || items.length; // Approximate for search if not provided
+
+        renderTable(items);
+        renderPagination(total);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function renderTable(items) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No data found</td></tr>';
+            return;
+        }
 
         items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'list-group-item list-group-item-dark mb-1 rounded';
+            const tr = document.createElement('tr');
 
-            let title = item.name || item.description || item.title;
-            let freq = item.frequency ? formatFreq(item.frequency) :
-                       (item.start_freq ? `${formatFreq(item.start_freq)} - ${formatFreq(item.end_freq)}` :
-                       formatFreq(item.frequency_start));
-            let type = item.start_freq ? 'Allocation' : (item.frequency ? 'Channel' : 'Note');
-            let content = item.content || item.description || '';
-            let cat = item.category ? `<span class="badge bg-secondary">${item.category}</span>` : '';
+            let freq = item.val ? formatFreq(item.val) : '';
+            if (item.type === 'allocation' && item.description && item.description.startsWith('Range:')) {
+                // If it's a range description, keep it, or format it nicely?
+                // The API sends description as "Range: start - end"
+            }
 
-            div.innerHTML = `
-                <div class="d-flex w-100 justify-content-between">
-                    <h5 class="mb-1 text-primary">${title}</h5>
-                    <small class="text-warning">${freq}</small>
-                </div>
-                <p class="mb-1">${content}</p>
-                <small class="text-muted">${type} ${cat}</small>
+            let typeBadge = '';
+            switch(item.type) {
+                case 'channel': typeBadge = '<span class="badge bg-success">Channel</span>'; break;
+                case 'allocation': typeBadge = '<span class="badge bg-primary">Allocation</span>'; break;
+                case 'note': typeBadge = '<span class="badge bg-danger">Note</span>'; break;
+            }
+
+            let loc = '';
+            if (item.lat || item.lon) {
+                loc = `<small><i class="bi bi-geo-alt"></i> ${escapeHtml(item.lat || '?')}, ${escapeHtml(item.lon || '?')}</small>`;
+                if (item.az) loc += `<br><small><i class="bi bi-compass"></i> ${escapeHtml(item.az)}°</small>`;
+            } else {
+                loc = '<span class="text-muted">-</span>';
+            }
+
+            tr.innerHTML = `
+                <td>${escapeHtml(freq)}</td>
+                <td>${escapeHtml(item.title || '-')}</td>
+                <td>${escapeHtml(item.category || '-')}</td>
+                <td>${typeBadge}</td>
+                <td class="text-wrap" style="max-width: 300px;">${escapeHtml(item.description || '')}</td>
+                <td>${loc}</td>
             `;
-
-            // Click to zoom/focus (simple implementation)
-            div.onclick = () => showDetails(item);
-            list.appendChild(div);
+            tbody.appendChild(tr);
         });
     }
 
-    function showDetails(item) {
-        // Just highlight in list or alert for now
-        // A real app might open a modal
-        console.log('Selected:', item);
+    function renderPagination(totalItems) {
+        const totalPages = Math.ceil(totalItems / currentLimit);
+        const pagination = document.getElementById('pagination');
+        const pageInfo = document.getElementById('pageInfo');
+
+        // Info text
+        const start = (currentPage - 1) * currentLimit + 1;
+        const end = Math.min(currentPage * currentLimit, totalItems);
+        pageInfo.textContent = `Showing ${totalItems > 0 ? start : 0}-${end} of ${totalItems}`;
+
+        // Pagination buttons
+        let html = '';
+
+        // Prev
+        html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage - 1}">&laquo;</a>
+                 </li>`;
+
+        // Simple window: First, Last, Current +/- 1
+        // For simplicity, just show current and neighbors or simple range
+        for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${i}">${i}</a>
+                     </li>`;
+        }
+
+        // Next
+        html += `<li class="page-item ${currentPage === totalPages || totalPages === 0 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage + 1}">&raquo;</a>
+                 </li>`;
+
+        pagination.innerHTML = html;
+
+        // Attach events
+        pagination.querySelectorAll('a.page-link').forEach(a => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                const p = parseInt(e.target.dataset.page);
+                if (!isNaN(p) && p > 0 && p <= totalPages) {
+                    currentPage = p;
+                    loadTableData();
+                }
+            });
+        });
     }
 
-    document.getElementById('updateView').addEventListener('click', loadData);
+    // Sort Handlers
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const sort = th.dataset.sort;
+            if (currentSort === sort) {
+                currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort = sort;
+                currentOrder = 'asc';
+            }
+            currentPage = 1; // Reset to page 1 on sort
+            searchActive = false; // Sorting usually applies to the full list, if we are in search mode we might want to stay there but sort search results.
+            // The API handles sort for 'list_all', but 'search' results are usually relevance or just frequency.
+            // Let's assume sorting resets to list_all for simplicity unless we enhance search API.
+            // Actually, let's keep it simple: Sorting only for list_all.
+            if (!searchActive) loadTableData();
+        });
+    });
 
-    document.getElementById('addNoteForm').addEventListener('submit', async (e) => {
+    // Search
+    document.getElementById('btnSearch').addEventListener('click', performSearch);
+    document.getElementById('searchInput').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+
+    function performSearch() {
+        const q = document.getElementById('searchInput').value.trim();
+        if (q) {
+            searchActive = true;
+            searchQuery = q;
+        } else {
+            searchActive = false;
+        }
+        currentPage = 1;
+        loadTableData();
+    }
+
+    // Update Chart
+    document.getElementById('updateView').addEventListener('click', loadChartData);
+
+    // Handle Entry Type Change
+    document.getElementById('entryType').addEventListener('change', (e) => {
+        const type = e.target.value;
+        const noteFields = document.getElementById('noteFields');
+        const channelFields = document.getElementById('channelFields');
+        const freqEnd = document.getElementById('entryFreqEnd');
+
+        if (type === 'note') {
+            noteFields.classList.remove('d-none');
+            channelFields.classList.add('d-none');
+            freqEnd.disabled = true;
+            freqEnd.value = '';
+        } else if (type === 'channel') {
+            noteFields.classList.add('d-none');
+            channelFields.classList.remove('d-none');
+            freqEnd.disabled = true;
+            freqEnd.value = '';
+        } else if (type === 'allocation') {
+            noteFields.classList.add('d-none');
+            channelFields.classList.add('d-none');
+            freqEnd.disabled = false;
+        }
+    });
+
+    // Add Entry
+    document.getElementById('addEntryForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const freq = document.getElementById('noteFreq').value;
-        const title = document.getElementById('noteTitle').value;
-        const content = document.getElementById('noteContent').value;
 
-        await fetch('api.php?action=add_note', {
+        const type = document.getElementById('entryType').value;
+        const data = {
+            type: type,
+            freq_start: document.getElementById('entryFreqStart').value,
+            freq_end: document.getElementById('entryFreqEnd').value,
+            title: document.getElementById('entryTitle').value,
+            category: document.getElementById('entryCategory').value,
+            content: document.getElementById('entryContent').value,
+        };
+
+        if (type === 'note') {
+            data.latitude = document.getElementById('entryLat').value;
+            data.longitude = document.getElementById('entryLon').value;
+            data.azimuth = document.getElementById('entryAz').value;
+        } else if (type === 'channel') {
+            data.bandwidth = document.getElementById('entryBW').value;
+            data.modulation = document.getElementById('entryMod').value;
+        }
+
+        await fetch('api.php?action=add_entry', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ freq_start: freq, title, content })
+            body: JSON.stringify(data)
         });
 
-        loadData();
-        document.getElementById('addNoteForm').reset();
+        loadChartData();
+        loadTableData();
+        document.getElementById('addEntryForm').reset();
+        // Reset view state
+        document.getElementById('entryType').dispatchEvent(new Event('change'));
     });
 
-    document.getElementById('searchForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const q = document.getElementById('searchInput').value;
-        const res = await fetch(`api.php?action=search&q=${q}`);
-        const results = await res.json();
-        populateList(results);
-    });
-
-    // Initial load
-    loadData();
+    // Init
+    initChart();
+    loadChartData();
+    loadTableData();
 });

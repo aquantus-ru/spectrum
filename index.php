@@ -6,80 +6,165 @@
     <title>Spectrum Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
 </head>
 <body class="spectrum-theme">
-    <nav class="navbar navbar-dark bg-black border-bottom border-rgb">
+    <nav class="navbar navbar-dark bg-black border-bottom border-rgb sticky-top">
         <div class="container-fluid">
-            <a class="navbar-brand spectrum-text" href="#">
+            <a class="navbar-brand spectrum-text d-flex align-items-center" href="#">
+                <i class="bi bi-broadcast me-2"></i>
                 <span class="text-red">R</span><span class="text-green">G</span><span class="text-blue">B</span> Spectrum
             </a>
-            <form class="d-flex" id="searchForm">
-                <input class="form-control me-2 bg-dark text-light border-secondary" type="search" placeholder="Search Freq/Name" aria-label="Search" id="searchInput">
-                <button class="btn btn-outline-success" type="submit">Search</button>
-            </form>
+            <button class="navbar-toggler d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+                <span class="navbar-toggler-icon"></span>
+            </button>
         </div>
     </nav>
 
-    <div class="container-fluid mt-3">
+    <div class="container-fluid">
         <div class="row">
-            <!-- Sidebar / Controls -->
-            <div class="col-md-3 bg-dark-glass p-3 rounded border-start border-end border-primary">
-                <h5 class="text-info">Controls</h5>
-                <div class="mb-3">
-                    <label class="form-label text-light">Frequency Range (Hz)</label>
-                    <div class="input-group mb-2">
-                        <span class="input-group-text bg-secondary text-light">Min</span>
-                        <input type="number" class="form-control bg-dark text-light" id="minFreq" value="0">
-                    </div>
-                    <div class="input-group">
-                        <span class="input-group-text bg-secondary text-light">Max</span>
-                        <input type="number" class="form-control bg-dark text-light" id="maxFreq" value="10000000000">
-                    </div>
-                    <button class="btn btn-primary w-100 mt-2" id="updateView">Update View</button>
+            <!-- Sidebar (Collapsible on mobile) -->
+            <div class="col-md-3 col-lg-2 collapse d-md-block bg-dark-glass p-3 border-end border-primary sidebar" id="sidebarMenu">
+                <h5 class="text-info mt-3"><i class="bi bi-sliders"></i> Controls</h5>
+                <div class="mb-4">
+                    <label class="form-label text-light text-small">Min Freq (Hz)</label>
+                    <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="minFreq" value="0">
+
+                    <label class="form-label text-light text-small mt-2">Max Freq (Hz)</label>
+                    <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="maxFreq" value="10000000000">
+
+                    <button class="btn btn-sm btn-outline-primary w-100 mt-3" id="updateView">
+                        <i class="bi bi-arrow-repeat"></i> Update Graph
+                    </button>
                 </div>
 
                 <hr class="border-light">
 
-                <h5 class="text-warning">Add Note</h5>
-                <form id="addNoteForm">
+                <h5 class="text-warning"><i class="bi bi-pencil-square"></i> Add Entry</h5>
+                <form id="addEntryForm">
                     <div class="mb-2">
-                        <input type="number" step="0.0001" class="form-control bg-dark text-light" id="noteFreq" placeholder="Frequency (Hz)" required>
+                        <select class="form-select form-select-sm bg-dark text-light border-secondary" id="entryType">
+                            <option value="note" selected>Note</option>
+                            <option value="channel">Channel</option>
+                            <option value="allocation">Range / Allocation</option>
+                        </select>
                     </div>
+
+                    <div class="row g-1 mb-2">
+                        <div class="col-6">
+                            <input type="number" step="0.0001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryFreqStart" placeholder="Freq Start (Hz)" required>
+                        </div>
+                        <div class="col-6">
+                            <input type="number" step="0.0001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryFreqEnd" placeholder="Freq End (Hz)" disabled>
+                        </div>
+                    </div>
+
                     <div class="mb-2">
-                        <input type="text" class="form-control bg-dark text-light" id="noteTitle" placeholder="Title" required>
+                        <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryTitle" placeholder="Title / Name" required>
                     </div>
+
                     <div class="mb-2">
-                        <textarea class="form-control bg-dark text-light" id="noteContent" placeholder="Content" rows="2"></textarea>
+                        <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryCategory" placeholder="Category (e.g. HAM, WiFi)">
                     </div>
-                    <button type="submit" class="btn btn-warning w-100">Save Note</button>
+
+                    <div class="mb-2">
+                        <textarea class="form-control form-control-sm bg-dark text-light border-secondary" id="entryContent" placeholder="Description / Content" rows="2"></textarea>
+                    </div>
+
+                    <!-- Channel Specific -->
+                    <div id="channelFields" class="d-none">
+                        <div class="row g-1 mb-2">
+                            <div class="col-6">
+                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryBW" placeholder="BW (Hz)">
+                            </div>
+                            <div class="col-6">
+                                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryMod" placeholder="Modulation">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Note Specific (Location) -->
+                    <div id="noteFields">
+                        <div class="row g-1 mb-2">
+                            <div class="col-6">
+                                <input type="number" step="0.000001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryLat" placeholder="Lat">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" step="0.000001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryLon" placeholder="Lon">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <input type="number" step="0.1" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryAz" placeholder="Azimuth (0-360)">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-sm btn-warning w-100">Save</button>
                 </form>
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9">
-                <!-- Spectrum Graph -->
-                <div class="card bg-black border-rgb mb-4">
-                    <div class="card-header text-light">Spectrum Analyzer</div>
-                    <div class="card-body">
-                        <canvas id="spectrumChart" height="100"></canvas>
-                    </div>
-                </div>
+            <div class="col-md-9 col-lg-10 p-4">
 
-                <!-- Data List -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <h4 class="text-light border-bottom border-danger pb-2">Results / Details</h4>
-                        <div id="resultsArea" class="list-group bg-transparent">
-                            <!-- Dynamic Content -->
+                <!-- Spectrum Graph -->
+                <div class="card bg-black border-rgb mb-4 shadow-lg">
+                    <div class="card-header text-light bg-transparent border-bottom border-secondary d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-graph-up"></i> Spectrum Analyzer</span>
+                        <small class="text-muted">Logarithmic Scale</small>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="chart-container" style="position: relative; height:30vh; width:100%">
+                            <canvas id="spectrumChart"></canvas>
                         </div>
                     </div>
                 </div>
+
+                <!-- Data Table Control Bar -->
+                <div class="row mb-3 align-items-center">
+                    <div class="col-md-6">
+                        <h4 class="text-light"><i class="bi bi-table"></i> Frequency Data</h4>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control bg-dark text-light border-secondary" id="searchInput" placeholder="Search data...">
+                            <button class="btn btn-outline-success" type="button" id="btnSearch">Search</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="table-responsive bg-dark-glass rounded border border-secondary">
+                    <table class="table table-dark table-hover mb-0" id="freqTable">
+                        <thead>
+                            <tr class="text-secondary">
+                                <th scope="col" class="sortable" data-sort="val">Freq (Hz) <i class="bi bi-arrow-down-up"></i></th>
+                                <th scope="col" class="sortable" data-sort="title">Title/Name <i class="bi bi-arrow-down-up"></i></th>
+                                <th scope="col" class="sortable" data-sort="category">Category <i class="bi bi-arrow-down-up"></i></th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Description/Notes</th>
+                                <th scope="col">Location</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav class="mt-3 d-flex justify-content-between align-items-center">
+                    <div class="text-muted small" id="pageInfo">Showing 0-0 of 0</div>
+                    <ul class="pagination pagination-sm mb-0" id="pagination">
+                        <!-- Pagination injected by JS -->
+                    </ul>
+                </nav>
+
             </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -29,6 +29,9 @@ $commands = [
         frequency_end REAL,
         title TEXT,
         content TEXT,
+        latitude REAL,
+        longitude REAL,
+        azimuth REAL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )"
 ];
