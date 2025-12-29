@@ -45,6 +45,7 @@
                 <h5 class="text-warning"><i class="bi bi-pencil-square"></i> Add Entry</h5>
                 <form id="addEntryForm">
                     <div class="mb-2">
+                        <label class="form-label text-white small">Type</label>
                         <select class="form-select form-select-sm bg-dark text-light border-secondary" id="entryType">
                             <option value="note" selected>Note</option>
                             <option value="channel">Channel</option>
@@ -54,22 +55,27 @@
 
                     <div class="row g-1 mb-2">
                         <div class="col-6">
+                            <label class="form-label text-white small">Start Freq (Hz)</label>
                             <input type="number" step="0.0001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryFreqStart" placeholder="Freq Start (Hz)" required>
                         </div>
                         <div class="col-6">
+                            <label class="form-label text-white small">End Freq (Hz)</label>
                             <input type="number" step="0.0001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryFreqEnd" placeholder="Freq End (Hz)" disabled>
                         </div>
                     </div>
 
                     <div class="mb-2">
+                        <label class="form-label text-white small">Title</label>
                         <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryTitle" placeholder="Title / Name" required>
                     </div>
 
                     <div class="mb-2">
+                        <label class="form-label text-white small">Category</label>
                         <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryCategory" placeholder="Category (e.g. HAM, WiFi)">
                     </div>
 
                     <div class="mb-2">
+                        <label class="form-label text-white small">Content/Description</label>
                         <textarea class="form-control form-control-sm bg-dark text-light border-secondary" id="entryContent" placeholder="Description / Content" rows="2"></textarea>
                     </div>
 
@@ -77,9 +83,11 @@
                     <div id="channelFields" class="d-none">
                         <div class="row g-1 mb-2">
                             <div class="col-6">
+                                <label class="form-label text-white small">Bandwidth (Hz)</label>
                                 <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryBW" placeholder="BW (Hz)">
                             </div>
                             <div class="col-6">
+                                <label class="form-label text-white small">Modulation</label>
                                 <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryMod" placeholder="Modulation">
                             </div>
                         </div>
@@ -89,13 +97,16 @@
                     <div id="noteFields">
                         <div class="row g-1 mb-2">
                             <div class="col-6">
+                                <label class="form-label text-white small">Latitude</label>
                                 <input type="number" step="0.000001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryLat" placeholder="Lat">
                             </div>
                             <div class="col-6">
+                                <label class="form-label text-white small">Longitude</label>
                                 <input type="number" step="0.000001" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryLon" placeholder="Lon">
                             </div>
                         </div>
                         <div class="mb-2">
+                            <label class="form-label text-white small">Azimuth</label>
                             <input type="number" step="0.1" class="form-control form-control-sm bg-dark text-light border-secondary" id="entryAz" placeholder="Azimuth (0-360)">
                         </div>
                     </div>
@@ -116,6 +127,17 @@
                     <div class="card-body p-2">
                         <div class="chart-container" style="position: relative; height:30vh; width:100%">
                             <canvas id="spectrumChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- Selection Details (Hidden by default) -->
+                    <div id="selectionDetails" class="card-footer bg-dark-glass text-light border-top border-secondary d-none">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div id="selectionContent">
+                                <!-- Details injected here -->
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" id="clearSelection" title="Clear Selection">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -22,18 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'bar',
                         label: 'Allocations',
                         data: [],
-                        backgroundColor: 'rgba(50, 50, 255, 0.2)', // Translucent blue blocks
-                        borderColor: 'rgba(50, 50, 255, 0.8)',
+                        backgroundColor: [], // Dynamic
+                        borderColor: [], // Dynamic
                         borderWidth: 1,
-                        // Floating bars: data struct is [start, end] on axis
-                        // But since we want Horizontal bars on a time/linear scale,
-                        // ChartJS 3/4 supports indexAxis: 'y' for horizontal bar.
-                        // However, combining with Scatter on Log X is tricky.
-                        // Let's stick to scatter for points and use floating bars on the same X axis.
-                        // Floating bars format: [start, end] for the value axis.
-                        // Since X is our Log Value axis, we want bars that span X1 to X2 at a certain Y.
-                        // Chart.js requires 'indexAxis: y' to make the "Value" axis X.
-                        // This applies to the whole chart or dataset.
                         indexAxis: 'y',
                         barThickness: 20,
                     },
@@ -41,21 +32,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'scatter',
                         label: 'Channels',
                         data: [],
-                        backgroundColor: 'rgba(50, 255, 50, 1)',
-                        borderColor: '#fff',
+                        backgroundColor: [], // Dynamic
+                        borderColor: [],
                         borderWidth: 1,
-                        pointRadius: 6,
+                        pointRadius: [], // Dynamic sizing for highlight
                         pointHoverRadius: 8
                     },
                     {
                         type: 'scatter',
                         label: 'Notes',
                         data: [],
-                        backgroundColor: 'rgba(255, 50, 50, 1)',
-                        borderColor: '#fff',
+                        backgroundColor: [], // Dynamic
+                        borderColor: [],
                         borderWidth: 1,
                         pointStyle: 'triangle',
-                        pointRadius: 8,
+                        pointRadius: [],
                         pointHoverRadius: 10
                     }
                 ]
@@ -95,11 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 let dsLabel = context.dataset.label;
 
                                 if (dsLabel === 'Allocations') {
-                                    // For bar, item is [start, end] usually, or x object
-                                    // In indexAxis:'y', x is [start, end]
-                                    // But we passed objects {x: [start, end], y: 'Allocations'}
-                                    // context.raw might be the object.
-                                    // Wait, for Log scale bars, Chart.js 3+ handles floating bars better.
                                     let start = item.x[0];
                                     let end = item.x[1];
                                     return `${item.desc}: ${formatFreq(start)} - ${formatFreq(end)}`;
@@ -122,21 +108,85 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 onClick: (e, elements) => {
+                    const detailsDiv = document.getElementById('selectionDetails');
+                    const contentDiv = document.getElementById('selectionContent');
+
+                    // Reset highlights
+                    resetChartHighlight();
+
                     if (elements.length > 0) {
                         const idx = elements[0].datasetIndex;
                         const dataIdx = elements[0].index;
                         const item = spectrumChart.data.datasets[idx].data[dataIdx];
-                        let info = '';
+
+                        // Highlight Selected
+                        highlightItem(idx, dataIdx);
+
+                        // Show Details HTML
+                        detailsDiv.classList.remove('d-none');
+
+                        let html = '';
                         if (idx === 0) { // Allocation
-                            info = `${item.desc}\nRange: ${formatFreq(item.x[0])} - ${formatFreq(item.x[1])}`;
+                            html = `<strong class="text-primary">${escapeHtml(item.desc)}</strong><br>
+                                    <span class="text-info">${formatFreq(item.x[0])} - ${formatFreq(item.x[1])}</span><br>
+                                    <small class="text-muted">Category: ${escapeHtml(item.obj.category)}</small>`;
                         } else {
-                            info = `${item.name || item.title}\nFrequency: ${formatFreq(item.x)}\n${item.desc || item.obj.content || ''}`;
+                            html = `<strong class="text-primary">${escapeHtml(item.name || item.title)}</strong><br>
+                                    <span class="text-warning">${formatFreq(item.x)}</span><br>
+                                    <p class="mb-0 small">${escapeHtml(item.desc || item.obj.content || '')}</p>`;
+                            if (item.obj.latitude) {
+                                html += `<small class="text-muted"><i class="bi bi-geo-alt"></i> ${item.obj.latitude}, ${item.obj.longitude} (${item.obj.azimuth}°)</small>`;
+                            }
                         }
-                        alert(info);
+                        contentDiv.innerHTML = html;
+                    } else {
+                        // Deselect if clicking on empty space
+                        detailsDiv.classList.add('d-none');
+                        contentDiv.innerHTML = '';
                     }
+                    spectrumChart.update();
                 }
             }
         });
+
+        // Clear Selection Button
+        document.getElementById('clearSelection').addEventListener('click', () => {
+            document.getElementById('selectionDetails').classList.add('d-none');
+            document.getElementById('selectionContent').innerHTML = '';
+            resetChartHighlight();
+            spectrumChart.update();
+        });
+    }
+
+    // Helper to handle Chart colors array manually since we need per-point control
+    // Storing original colors to revert
+    const defaultColors = {
+        0: { bg: 'rgba(50, 50, 255, 0.2)', border: 'rgba(50, 50, 255, 0.8)' },
+        1: { bg: 'rgba(50, 255, 50, 1)', border: '#fff' },
+        2: { bg: 'rgba(255, 50, 50, 1)', border: '#fff' }
+    };
+
+    function resetChartHighlight() {
+        spectrumChart.data.datasets.forEach((ds, dsIdx) => {
+            const len = ds.data.length;
+            const def = defaultColors[dsIdx];
+            ds.backgroundColor = new Array(len).fill(def.bg);
+            ds.borderColor = new Array(len).fill(def.border);
+            if (dsIdx > 0) ds.pointRadius = new Array(len).fill(dsIdx === 1 ? 6 : 8); // Reset point sizes
+        });
+    }
+
+    function highlightItem(dsIdx, dataIdx) {
+        const ds = spectrumChart.data.datasets[dsIdx];
+
+        // Dim others slightly? Or just brighten selected.
+        // Let's make selected bright white/yellow
+        ds.backgroundColor[dataIdx] = 'rgba(255, 255, 255, 0.9)';
+        ds.borderColor[dataIdx] = '#ffff00';
+
+        if (dsIdx > 0) { // Scatter points
+            ds.pointRadius[dataIdx] = 12; // Enlarge
+        }
     }
 
     function formatFreq(hz) {
@@ -179,6 +229,9 @@ document.addEventListener('DOMContentLoaded', () => {
         spectrumChart.data.datasets[0].data = allocBars;
         spectrumChart.data.datasets[1].data = chanPoints;
         spectrumChart.data.datasets[2].data = notePoints;
+
+        // Initialize colors arrays for the new data
+        resetChartHighlight();
         spectrumChart.update();
     }
 
