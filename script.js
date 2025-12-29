@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         title: { display: true, text: 'Frequency (Hz)', color: '#aaa' },
                         grid: { color: '#222' },
                         ticks: { color: '#888', callback: function(value) { return formatFreq(value); } },
-                        min: 1,
+                        suggestedMin: 1,
                     },
                     y: {
                         type: 'category',
@@ -92,9 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     },
                     zoom: {
+                        limits: {
+                            x: {min: 0.1, max: 100000000000}
+                        },
                         zoom: {
                             wheel: { enabled: true },
                             pinch: { enabled: true },
+                            drag: { enabled: true, modifierKey: 'shift', backgroundColor: 'rgba(255,255,255,0.1)' },
                             mode: 'x',
                         },
                         pan: {

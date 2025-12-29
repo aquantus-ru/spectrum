@@ -19,40 +19,72 @@ function getPaginationParams() {
 try {
     if ($action === 'search') {
         $query = $_GET['q'] ?? '';
-        $sql = "SELECT 'channel' as type, id, frequency as val, name as title, description, category, NULL as lat, NULL as lon, NULL as az FROM channels
-                WHERE name LIKE ? OR description LIKE ? OR category LIKE ?
-                UNION
-                SELECT 'allocation' as type, id, start_freq as val, description as title, 'Range: ' || start_freq || ' - ' || end_freq as description, category, NULL as lat, NULL as lon, NULL as az FROM spectrum_allocations
-                WHERE description LIKE ? OR category LIKE ?
-                UNION
-                SELECT 'note' as type, id, frequency_start as val, title, content as description, 'User Note' as category, latitude as lat, longitude as lon, azimuth as az FROM notes
-                WHERE title LIKE ? OR content LIKE ?
-                ORDER BY val ASC";
-
         $term = "%$query%";
-        // Naive pagination for the union query (apply limit/offset to the whole result)
-        // For larger datasets, this might need optimization, but for SQLite union, appending LIMIT/OFFSET works.
-        $params = [$term, $term, $term, $term, $term, $term, $term];
+        $isNumeric = is_numeric($query);
+        $freqVal = $isNumeric ? (float)$query : null;
+
+        // Base search on text fields
+        // For numeric inputs, we also check if the value is within an allocation/note range
+        // or matches a channel frequency directly.
+
+        // CHANNELS
+        $chanWhere = "name LIKE ? OR description LIKE ? OR category LIKE ? OR CAST(frequency AS TEXT) LIKE ?";
+        $chanParams = [$term, $term, $term, $term];
+
+        // ALLOCATIONS
+        // Search text OR start/end freq strings OR (if numeric) value inside range
+        $allocWhere = "description LIKE ? OR category LIKE ? OR CAST(start_freq AS TEXT) LIKE ? OR CAST(end_freq AS TEXT) LIKE ?";
+        $allocParams = [$term, $term, $term, $term];
+        if ($isNumeric) {
+            $allocWhere .= " OR (? >= start_freq AND ? <= end_freq)";
+            $allocParams[] = $freqVal;
+            $allocParams[] = $freqVal;
+        }
+
+        // NOTES
+        $noteWhere = "title LIKE ? OR content LIKE ? OR CAST(frequency_start AS TEXT) LIKE ?";
+        $noteParams = [$term, $term, $term];
+        if ($isNumeric) {
+            $noteWhere .= " OR (? >= frequency_start AND ? <= frequency_end)";
+            $noteParams[] = $freqVal;
+            $noteParams[] = $freqVal;
+        }
+
+        // Construct Main Query
+        $sql = "SELECT 'channel' as type, id, frequency as val, name as title, description, category, NULL as lat, NULL as lon, NULL as az
+                FROM channels
+                WHERE $chanWhere
+                UNION
+                SELECT 'allocation' as type, id, start_freq as val, description as title, 'Range: ' || start_freq || ' - ' || end_freq as description, category, NULL as lat, NULL as lon, NULL as az
+                FROM spectrum_allocations
+                WHERE $allocWhere
+                UNION
+                SELECT 'note' as type, id, frequency_start as val, title, content as description, 'User Note' as category, latitude as lat, longitude as lon, azimuth as az
+                FROM notes
+                WHERE $noteWhere
+                ORDER BY val ASC";
 
         $pg = isset($_GET['page']) ? getPaginationParams() : ['limit' => 20, 'offset' => 0];
 
-        // Count Query for Search
+        // Combine all parameters
+        $allParams = array_merge($chanParams, $allocParams, $noteParams);
+
+        // Count Query
         $countSql = "SELECT COUNT(*) as total FROM (
-            SELECT 1 FROM channels WHERE name LIKE ? OR description LIKE ? OR category LIKE ?
+            SELECT 1 FROM channels WHERE $chanWhere
             UNION ALL
-            SELECT 1 FROM spectrum_allocations WHERE description LIKE ? OR category LIKE ?
+            SELECT 1 FROM spectrum_allocations WHERE $allocWhere
             UNION ALL
-            SELECT 1 FROM notes WHERE title LIKE ? OR content LIKE ?
+            SELECT 1 FROM notes WHERE $noteWhere
         )";
         $countStmt = $pdo->prepare($countSql);
-        $countStmt->execute($params);
+        $countStmt->execute($allParams);
         $total = $countStmt->fetch()['total'];
 
-        // Add Limit/Offset to Data Query
+        // Data Query with Limit
         $sql .= " LIMIT " . $pg['limit'] . " OFFSET " . $pg['offset'];
-
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        $stmt->execute($allParams);
 
         echo json_encode([
             'data' => $stmt->fetchAll(),
