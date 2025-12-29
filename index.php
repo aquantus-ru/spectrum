@@ -120,9 +120,16 @@
 
                 <!-- Spectrum Graph -->
                 <div class="card bg-black border-rgb mb-4 shadow-lg">
-                    <div class="card-header text-light bg-transparent border-bottom border-secondary d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-graph-up"></i> Spectrum Analyzer</span>
-                        <small class="text-muted">Logarithmic Scale</small>
+                    <div class="card-header text-light bg-transparent border-bottom border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="fw-bold"><i class="bi bi-graph-up"></i> Spectrum Analyzer</span>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary text-light" id="zoomIn" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
+                                <button class="btn btn-outline-secondary text-light" id="zoomOut" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
+                                <button class="btn btn-outline-secondary text-light" id="resetZoom" title="Reset Zoom"><i class="bi bi-arrows-fullscreen"></i></button>
+                            </div>
+                        </div>
+                        <small class="text-muted d-none d-md-block">Logarithmic Scale (Scroll/Pinch to Zoom)</small>
                     </div>
                     <div class="card-body p-2">
                         <div class="chart-container" style="position: relative; height:30vh; width:100%">

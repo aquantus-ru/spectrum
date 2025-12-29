@@ -11,10 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize Chart
     function initChart() {
         const ctx = document.getElementById('spectrumChart').getContext('2d');
-        // Define plugin for custom drawing if needed, but standard config first
 
         spectrumChart = new Chart(ctx, {
-            // Using a mixed chart, base type 'scatter' implies linear/log axes
             type: 'scatter',
             data: {
                 datasets: [
@@ -22,8 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'bar',
                         label: 'Allocations',
                         data: [],
-                        backgroundColor: [], // Dynamic
-                        borderColor: [], // Dynamic
+                        backgroundColor: [],
+                        borderColor: [],
                         borderWidth: 1,
                         indexAxis: 'y',
                         barThickness: 20,
@@ -32,17 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'scatter',
                         label: 'Channels',
                         data: [],
-                        backgroundColor: [], // Dynamic
+                        backgroundColor: [],
                         borderColor: [],
                         borderWidth: 1,
-                        pointRadius: [], // Dynamic sizing for highlight
+                        pointRadius: [],
                         pointHoverRadius: 8
                     },
                     {
                         type: 'scatter',
                         label: 'Notes',
                         data: [],
-                        backgroundColor: [], // Dynamic
+                        backgroundColor: [],
                         borderColor: [],
                         borderWidth: 1,
                         pointStyle: 'triangle',
@@ -54,18 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                indexAxis: 'y', // Horizontal orientation for Bars. X is the value axis.
+                indexAxis: 'y',
                 scales: {
                     x: {
                         type: 'logarithmic',
                         title: { display: true, text: 'Frequency (Hz)', color: '#aaa' },
                         grid: { color: '#222' },
                         ticks: { color: '#888', callback: function(value) { return formatFreq(value); } },
-                        min: 1, // Log scale can't go to 0
+                        min: 1,
                     },
                     y: {
-                        // This axis is just for "stacking" our visualization layers
-                        // We will map Categories or arbitrary indices to it.
                         type: 'category',
                         labels: ['Allocations', 'Channels', 'Notes'],
                         grid: { color: '#333' },
@@ -111,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const detailsDiv = document.getElementById('selectionDetails');
                     const contentDiv = document.getElementById('selectionContent');
 
-                    // Reset highlights
                     resetChartHighlight();
 
                     if (elements.length > 0) {
@@ -119,10 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dataIdx = elements[0].index;
                         const item = spectrumChart.data.datasets[idx].data[dataIdx];
 
-                        // Highlight Selected
                         highlightItem(idx, dataIdx);
 
-                        // Show Details HTML
                         detailsDiv.classList.remove('d-none');
 
                         let html = '';
@@ -140,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         contentDiv.innerHTML = html;
                     } else {
-                        // Deselect if clicking on empty space
                         detailsDiv.classList.add('d-none');
                         contentDiv.innerHTML = '';
                     }
@@ -156,10 +148,19 @@ document.addEventListener('DOMContentLoaded', () => {
             resetChartHighlight();
             spectrumChart.update();
         });
+
+        // Zoom Controls
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            spectrumChart.zoom(1.1);
+        });
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            spectrumChart.zoom(0.9);
+        });
+        document.getElementById('resetZoom').addEventListener('click', () => {
+            spectrumChart.resetZoom();
+        });
     }
 
-    // Helper to handle Chart colors array manually since we need per-point control
-    // Storing original colors to revert
     const defaultColors = {
         0: { bg: 'rgba(50, 50, 255, 0.2)', border: 'rgba(50, 50, 255, 0.8)' },
         1: { bg: 'rgba(50, 255, 50, 1)', border: '#fff' },
@@ -172,20 +173,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const def = defaultColors[dsIdx];
             ds.backgroundColor = new Array(len).fill(def.bg);
             ds.borderColor = new Array(len).fill(def.border);
-            if (dsIdx > 0) ds.pointRadius = new Array(len).fill(dsIdx === 1 ? 6 : 8); // Reset point sizes
+            if (dsIdx > 0) ds.pointRadius = new Array(len).fill(dsIdx === 1 ? 6 : 8);
         });
     }
 
     function highlightItem(dsIdx, dataIdx) {
         const ds = spectrumChart.data.datasets[dsIdx];
-
-        // Dim others slightly? Or just brighten selected.
-        // Let's make selected bright white/yellow
         ds.backgroundColor[dataIdx] = 'rgba(255, 255, 255, 0.9)';
         ds.borderColor[dataIdx] = '#ffff00';
-
-        if (dsIdx > 0) { // Scatter points
-            ds.pointRadius[dataIdx] = 12; // Enlarge
+        if (dsIdx > 0) {
+            ds.pointRadius[dataIdx] = 12;
         }
     }
 
@@ -196,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return hz + ' Hz';
     }
 
-    // Load Chart Data (Full Range)
     async function loadChartData() {
         const min = document.getElementById('minFreq').value;
         const max = document.getElementById('maxFreq').value;
@@ -204,21 +200,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch(`api.php?action=chart_data&min=${min}&max=${max}`);
         const data = await res.json();
 
-        // Process Channels (Scatter)
-        // Map to Y='Channels'
         const chanPoints = data.channels.map(c => ({
             x: c.frequency, y: 'Channels', name: c.name, desc: c.description, obj: c
         }));
 
-        // Process Notes (Scatter)
-        // Map to Y='Notes'
         const notePoints = data.notes.map(n => ({
             x: n.frequency_start, y: 'Notes', title: n.title, desc: n.content, obj: n
         }));
 
-        // Process Allocations (Floating Bar)
-        // Map to Y='Allocations' with X as [start, end]
-        // Note: For Log scale, we must ensure values > 0. 1 Hz min.
         const allocBars = data.allocations.map(a => ({
             x: [Math.max(1, a.start_freq), Math.max(1, a.end_freq)],
             y: 'Allocations',
@@ -230,12 +219,10 @@ document.addEventListener('DOMContentLoaded', () => {
         spectrumChart.data.datasets[1].data = chanPoints;
         spectrumChart.data.datasets[2].data = notePoints;
 
-        // Initialize colors arrays for the new data
         resetChartHighlight();
         spectrumChart.update();
     }
 
-    // Load Table Data (Paginated)
     async function loadTableData() {
         let url = `api.php?action=${searchActive ? 'search' : 'list_all'}&page=${currentPage}&limit=${currentLimit}`;
         if (searchActive) {
@@ -247,10 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch(url);
         const json = await res.json();
 
-        // Search endpoint returns {data: [...]}, list_all returns {data: [...], total: ...}
-        // Unify for rendering
         const items = json.data;
-        const total = json.total || items.length; // Approximate for search if not provided
+        const total = json.total || items.length;
 
         renderTable(items);
         renderPagination(total);
@@ -276,10 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = document.createElement('tr');
 
             let freq = item.val ? formatFreq(item.val) : '';
-            if (item.type === 'allocation' && item.description && item.description.startsWith('Range:')) {
-                // If it's a range description, keep it, or format it nicely?
-                // The API sends description as "Range: start - end"
-            }
 
             let typeBadge = '';
             switch(item.type) {
@@ -296,8 +277,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 loc = '<span class="text-muted">-</span>';
             }
 
+            // Locate Button Logic
+            let locateBtn = `<button class="btn btn-sm btn-link text-info p-0 ms-2 locate-btn"
+                                data-val="${item.val}"
+                                data-end="${item.end_val || ''}"
+                                title="Locate on Graph">
+                                <i class="bi bi-search"></i>
+                             </button>`;
+
             tr.innerHTML = `
-                <td>${escapeHtml(freq)}</td>
+                <td>
+                    ${escapeHtml(freq)}
+                    ${locateBtn}
+                </td>
                 <td>${escapeHtml(item.title || '-')}</td>
                 <td>${escapeHtml(item.category || '-')}</td>
                 <td>${typeBadge}</td>
@@ -308,40 +300,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Locate Handler
+    document.getElementById('tableBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('.locate-btn');
+        if (btn) {
+            e.stopPropagation();
+            const val = parseFloat(btn.dataset.val);
+            const end = btn.dataset.end ? parseFloat(btn.dataset.end) : null;
+            locateItem(val, end);
+        }
+    });
+
+    function locateItem(start, end) {
+        let min, max;
+        // Log scale safety
+        if (start < 1) start = 1;
+
+        if (end && end > start) {
+            // Range
+            // Center around the range with some padding
+            // Log scale padding is multiplicative
+            // Let's show a bit wider than the range
+            min = start * 0.8;
+            max = end * 1.25;
+        } else {
+            // Point
+            // Show +/- a factor around the point
+            min = start * 0.5;
+            max = start * 2.0;
+        }
+
+        if (min < 1) min = 1;
+
+        if (spectrumChart && spectrumChart.scales.x) {
+            spectrumChart.zoomScale('x', {min, max}, 'default');
+            document.querySelector('.card').scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    }
+
     function renderPagination(totalItems) {
         const totalPages = Math.ceil(totalItems / currentLimit);
         const pagination = document.getElementById('pagination');
         const pageInfo = document.getElementById('pageInfo');
 
-        // Info text
         const start = (currentPage - 1) * currentLimit + 1;
         const end = Math.min(currentPage * currentLimit, totalItems);
         pageInfo.textContent = `Showing ${totalItems > 0 ? start : 0}-${end} of ${totalItems}`;
 
-        // Pagination buttons
         let html = '';
 
-        // Prev
         html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
                     <a class="page-link" href="#" data-page="${currentPage - 1}">&laquo;</a>
                  </li>`;
 
-        // Simple window: First, Last, Current +/- 1
-        // For simplicity, just show current and neighbors or simple range
         for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
             html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
                         <a class="page-link" href="#" data-page="${i}">${i}</a>
                      </li>`;
         }
 
-        // Next
         html += `<li class="page-item ${currentPage === totalPages || totalPages === 0 ? 'disabled' : ''}">
                     <a class="page-link" href="#" data-page="${currentPage + 1}">&raquo;</a>
                  </li>`;
 
         pagination.innerHTML = html;
 
-        // Attach events
         pagination.querySelectorAll('a.page-link').forEach(a => {
             a.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -354,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Sort Handlers
     document.querySelectorAll('.sortable').forEach(th => {
         th.addEventListener('click', () => {
             const sort = th.dataset.sort;
@@ -364,16 +386,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentSort = sort;
                 currentOrder = 'asc';
             }
-            currentPage = 1; // Reset to page 1 on sort
-            searchActive = false; // Sorting usually applies to the full list, if we are in search mode we might want to stay there but sort search results.
-            // The API handles sort for 'list_all', but 'search' results are usually relevance or just frequency.
-            // Let's assume sorting resets to list_all for simplicity unless we enhance search API.
-            // Actually, let's keep it simple: Sorting only for list_all.
-            if (!searchActive) loadTableData();
+            currentPage = 1;
+            searchActive = false;
+            loadTableData();
         });
     });
 
-    // Search
     document.getElementById('btnSearch').addEventListener('click', performSearch);
     document.getElementById('searchInput').addEventListener('keyup', (e) => {
         if (e.key === 'Enter') performSearch();
@@ -391,10 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTableData();
     }
 
-    // Update Chart
     document.getElementById('updateView').addEventListener('click', loadChartData);
 
-    // Handle Entry Type Change
     document.getElementById('entryType').addEventListener('change', (e) => {
         const type = e.target.value;
         const noteFields = document.getElementById('noteFields');
@@ -418,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Add Entry
     document.getElementById('addEntryForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -450,11 +465,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loadChartData();
         loadTableData();
         document.getElementById('addEntryForm').reset();
-        // Reset view state
         document.getElementById('entryType').dispatchEvent(new Event('change'));
     });
 
-    // Init
     initChart();
     loadChartData();
     loadTableData();
