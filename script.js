@@ -11,64 +11,101 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize Chart
     function initChart() {
         const ctx = document.getElementById('spectrumChart').getContext('2d');
+        // Define plugin for custom drawing if needed, but standard config first
+
         spectrumChart = new Chart(ctx, {
+            // Using a mixed chart, base type 'scatter' implies linear/log axes
             type: 'scatter',
             data: {
                 datasets: [
                     {
-                        label: 'Channels',
-                        data: [],
-                        backgroundColor: 'rgba(50, 255, 50, 0.8)',
-                        borderColor: 'rgba(50, 255, 50, 1)',
-                        pointRadius: 4,
-                        pointHoverRadius: 6
-                    },
-                    {
+                        type: 'bar',
                         label: 'Allocations',
                         data: [],
-                        backgroundColor: 'rgba(50, 50, 255, 0.3)',
-                        borderColor: 'rgba(50, 50, 255, 0.6)',
-                        borderWidth: 2,
-                        showLine: true,
-                        pointRadius: 0
+                        backgroundColor: 'rgba(50, 50, 255, 0.2)', // Translucent blue blocks
+                        borderColor: 'rgba(50, 50, 255, 0.8)',
+                        borderWidth: 1,
+                        // Floating bars: data struct is [start, end] on axis
+                        // But since we want Horizontal bars on a time/linear scale,
+                        // ChartJS 3/4 supports indexAxis: 'y' for horizontal bar.
+                        // However, combining with Scatter on Log X is tricky.
+                        // Let's stick to scatter for points and use floating bars on the same X axis.
+                        // Floating bars format: [start, end] for the value axis.
+                        // Since X is our Log Value axis, we want bars that span X1 to X2 at a certain Y.
+                        // Chart.js requires 'indexAxis: y' to make the "Value" axis X.
+                        // This applies to the whole chart or dataset.
+                        indexAxis: 'y',
+                        barThickness: 20,
                     },
                     {
-                        label: 'Notes',
+                        type: 'scatter',
+                        label: 'Channels',
                         data: [],
-                        backgroundColor: 'rgba(255, 50, 50, 0.9)',
-                        borderColor: 'rgba(255, 50, 50, 1)',
-                        pointStyle: 'triangle',
+                        backgroundColor: 'rgba(50, 255, 50, 1)',
+                        borderColor: '#fff',
+                        borderWidth: 1,
                         pointRadius: 6,
                         pointHoverRadius: 8
+                    },
+                    {
+                        type: 'scatter',
+                        label: 'Notes',
+                        data: [],
+                        backgroundColor: 'rgba(255, 50, 50, 1)',
+                        borderColor: '#fff',
+                        borderWidth: 1,
+                        pointStyle: 'triangle',
+                        pointRadius: 8,
+                        pointHoverRadius: 10
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                indexAxis: 'y', // Horizontal orientation for Bars. X is the value axis.
                 scales: {
                     x: {
                         type: 'logarithmic',
                         title: { display: true, text: 'Frequency (Hz)', color: '#aaa' },
                         grid: { color: '#222' },
-                        ticks: { color: '#888', callback: function(value) { return formatFreq(value); } }
+                        ticks: { color: '#888', callback: function(value) { return formatFreq(value); } },
+                        min: 1, // Log scale can't go to 0
                     },
                     y: {
-                        display: false,
-                        min: 0,
-                        max: 10
+                        // This axis is just for "stacking" our visualization layers
+                        // We will map Categories or arbitrary indices to it.
+                        type: 'category',
+                        labels: ['Allocations', 'Channels', 'Notes'],
+                        grid: { color: '#333' },
+                        ticks: { color: '#fff', font: { size: 14, weight: 'bold'} }
                     }
                 },
                 plugins: {
                     legend: { labels: { color: '#ccc' } },
                     tooltip: {
-                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        backgroundColor: 'rgba(10,10,10,0.9)',
                         titleColor: '#fff',
                         bodyColor: '#ddd',
+                        borderColor: '#555',
+                        borderWidth: 1,
                         callbacks: {
                             label: function(context) {
                                 let item = context.raw;
-                                return `${item.name || item.desc || item.title}: ${formatFreq(item.x)}`;
+                                let dsLabel = context.dataset.label;
+
+                                if (dsLabel === 'Allocations') {
+                                    // For bar, item is [start, end] usually, or x object
+                                    // In indexAxis:'y', x is [start, end]
+                                    // But we passed objects {x: [start, end], y: 'Allocations'}
+                                    // context.raw might be the object.
+                                    // Wait, for Log scale bars, Chart.js 3+ handles floating bars better.
+                                    let start = item.x[0];
+                                    let end = item.x[1];
+                                    return `${item.desc}: ${formatFreq(start)} - ${formatFreq(end)}`;
+                                } else {
+                                    return `${item.title || item.name}: ${formatFreq(item.x)}`;
+                                }
                             }
                         }
                     },
@@ -89,7 +126,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const idx = elements[0].datasetIndex;
                         const dataIdx = elements[0].index;
                         const item = spectrumChart.data.datasets[idx].data[dataIdx];
-                        alert(`Selected: ${item.name || item.desc || item.title}\nFrequency: ${formatFreq(item.x)}\n${item.obj.description || item.obj.content || ''}`);
+                        let info = '';
+                        if (idx === 0) { // Allocation
+                            info = `${item.desc}\nRange: ${formatFreq(item.x[0])} - ${formatFreq(item.x[1])}`;
+                        } else {
+                            info = `${item.name || item.title}\nFrequency: ${formatFreq(item.x)}\n${item.desc || item.obj.content || ''}`;
+                        }
+                        alert(info);
                     }
                 }
             }
@@ -111,27 +154,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch(`api.php?action=chart_data&min=${min}&max=${max}`);
         const data = await res.json();
 
-        // Process Channels
+        // Process Channels (Scatter)
+        // Map to Y='Channels'
         const chanPoints = data.channels.map(c => ({
-            x: c.frequency, y: 5, name: c.name, desc: c.description, obj: c
+            x: c.frequency, y: 'Channels', name: c.name, desc: c.description, obj: c
         }));
 
-        // Process Notes
+        // Process Notes (Scatter)
+        // Map to Y='Notes'
         const notePoints = data.notes.map(n => ({
-            x: n.frequency_start, y: 7, title: n.title, desc: n.content, obj: n
+            x: n.frequency_start, y: 'Notes', title: n.title, desc: n.content, obj: n
         }));
 
-        // Process Allocations
-        const allocLines = [];
-        data.allocations.forEach((a, i) => {
-            const y = 2 + (i % 3);
-            allocLines.push({ x: a.start_freq, y: y, desc: a.description, obj: a });
-            allocLines.push({ x: a.end_freq, y: y, desc: a.description, obj: a });
-            allocLines.push({ x: null, y: null });
-        });
+        // Process Allocations (Floating Bar)
+        // Map to Y='Allocations' with X as [start, end]
+        // Note: For Log scale, we must ensure values > 0. 1 Hz min.
+        const allocBars = data.allocations.map(a => ({
+            x: [Math.max(1, a.start_freq), Math.max(1, a.end_freq)],
+            y: 'Allocations',
+            desc: a.description,
+            obj: a
+        }));
 
-        spectrumChart.data.datasets[0].data = chanPoints;
-        spectrumChart.data.datasets[1].data = allocLines;
+        spectrumChart.data.datasets[0].data = allocBars;
+        spectrumChart.data.datasets[1].data = chanPoints;
         spectrumChart.data.datasets[2].data = notePoints;
         spectrumChart.update();
     }
