@@ -1,0 +1,56 @@
+/* style.css */
+body.spectrum-theme {
+    background-color: #050505;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.bg-black {
+    background-color: #000 !important;
+}
+
+.bg-dark-glass {
+    background-color: rgba(20, 20, 20, 0.9);
+}
+
+.text-red { color: #ff3333; text-shadow: 0 0 5px #ff0000; }
+.text-green { color: #33ff33; text-shadow: 0 0 5px #00ff00; }
+.text-blue { color: #3333ff; text-shadow: 0 0 5px #0000ff; }
+
+.border-rgb {
+    border: 1px solid;
+    border-image-slice: 1;
+    border-width: 2px;
+    border-image-source: linear-gradient(to right, #ff0000, #00ff00, #0000ff);
+}
+
+.spectrum-text {
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.list-group-item-dark {
+    background-color: #1a1a1a;
+    border-color: #333;
+    color: #ddd;
+}
+
+.list-group-item-dark:hover {
+    background-color: #2a2a2a;
+    color: #fff;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+::-webkit-scrollbar-track {
+    background: #111;
+}
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
